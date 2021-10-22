@@ -1,11 +1,15 @@
 package kotlin_dev.views
 
+import kotlin_dev.world.Configurations
 import twitter4j.*
 import java.awt.Dimension
 import java.net.URL
+import java.sql.DriverManager
+import java.util.*
 import javax.swing.*
 
 class TwitterFrame(private val twitter: Twitter) : JFrame() {
+    private var conn = DriverManager.getConnection(Configurations.DB_CONNECTION, Configurations.DB_USER, Configurations.DB_PASSWORD)
     private var statuses = DefaultListModel<Status>()
     private var jButton1 = JButton("Tweet")
     private var jLabel1 = JLabel("icon")
@@ -105,12 +109,21 @@ class TwitterFrame(private val twitter: Twitter) : JFrame() {
 
     private fun update() {
         val pagination = Paging()
-        pagination.count = 50
+        pagination.count = 500
 
         val list: ResponseList<Status> = twitter.getHomeTimeline(pagination)
 
         for (status in list) {
             statuses.addElement(status)
+            saveInDB(status.text, status.user.screenName, status.createdAt)
         }
+    }
+
+    private fun saveInDB(text: String, screenName: String, createdAt: Date) {
+        val stmt = conn.prepareStatement("INSERT INTO tweets VALUES (NULL, ?, ?, ?)")
+        stmt.setString(1, screenName)
+        stmt.setString(2, text)
+        stmt.setString(3, createdAt.toString())
+        stmt.executeUpdate()
     }
 }

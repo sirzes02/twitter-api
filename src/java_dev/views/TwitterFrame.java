@@ -2,6 +2,11 @@ package java_dev.views;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.Date;
 import java.util.Objects;
 import javax.swing.DefaultListModel;
 import javax.swing.GroupLayout;
@@ -16,6 +21,7 @@ import javax.swing.JTextField;
 import javax.swing.LayoutStyle;
 import javax.swing.WindowConstants;
 
+import kotlin_dev.world.Configurations;
 import twitter4j.Paging;
 import twitter4j.ResponseList;
 import twitter4j.Status;
@@ -26,11 +32,17 @@ import twitter4j.User;
 public class TwitterFrame extends JFrame {
   Twitter twitter;
   DefaultListModel<Status> statuses = new DefaultListModel<>();
-
+  private Connection conn;
   private JLabel jLabel1;
   private JTextField jTextField1;
 
   public TwitterFrame(Twitter twitter) {
+    try {
+      conn = DriverManager.getConnection(Configurations.DB_CONNECTION, Configurations.DB_USER, Configurations.DB_PASSWORD);
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
+
     initComponents();
     setTitle("Twitter - Big Data");
     this.twitter = twitter;
@@ -47,21 +59,6 @@ public class TwitterFrame extends JFrame {
       update();
       setVisible(true);
     } catch (IllegalStateException | TwitterException | MalformedURLException e) {
-      e.printStackTrace();
-    }
-  }
-
-  public void update() {
-    try {
-      Paging pagination = new Paging();
-      pagination.setCount(50);
-      ResponseList<Status> list;
-      list = twitter.getHomeTimeline(pagination);
-
-      for (Status status : list) {
-        statuses.addElement(status);
-      }
-    } catch (TwitterException e) {
       e.printStackTrace();
     }
   }
@@ -122,5 +119,33 @@ public class TwitterFrame extends JFrame {
                     GroupLayout.PREFERRED_SIZE))
             .addContainerGap()));
     pack();
+  }
+
+  public void update() {
+    try {
+      Paging pagination = new Paging();
+      pagination.setCount(50);
+      ResponseList<Status> list;
+      list = twitter.getHomeTimeline(pagination);
+
+      for (Status status : list) {
+        statuses.addElement(status);
+        saveInDB(status.getText(), status.getUser().getScreenName(), status.getCreatedAt());
+      }
+    } catch (TwitterException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private void saveInDB(String text, String screenName, Date createdAt) {
+    try {
+      PreparedStatement stmt = conn.prepareStatement("INSERT INTO tweets VALUES (NULL, ?, ?, ?)");
+      stmt.setString(1, screenName);
+      stmt.setString(2, text);
+      stmt.setString(3, createdAt.toString());
+      stmt.executeUpdate();
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
   }
 }
